@@ -3,7 +3,8 @@ name: 每日股票分析
 on:
   # 定时触发 - 每天伦敦时间 07:30 (自动兼容冬令时与夏令时)
   schedule:
-    - cron: '30 6 * * 1-5'     # 周一到周五，UTC 06:30 触发
+    - cron: '30 6 * * 1-5'  # 对应夏令时(BST)的伦敦 07:30 (此时 UTC 是 06:30)
+    - cron: '30 7 * * 1-5'  # 对应冬令时(GMT)的伦敦 07:30 (此时 UTC 是 07:30)
   
   # 手动触发
   workflow_dispatch:
@@ -44,15 +45,12 @@ jobs:
           CURRENT_HOUR=$(date +%-H)
           echo "当前伦敦小时数为: $CURRENT_HOUR"
           
-          if [ "$CURRENT_HOUR" -eq 6 ]; then
-            echo "[冬令时 GMT] 当前伦敦 06:30，需原地等待 60 分钟以对齐 07:30..."
-            sleep 3600
-          else
-            echo "[夏令时 BST] 当前伦敦 07:30，无需等待，直接开始分析任务。"
+          # 只在伦敦时间 7 点（即 07:30）执行
+          if [ "$CURRENT_HOUR" -ne 7 ]; then
+            echo "❌ 当前不是伦敦时间 07:30。为了防止冬夏令时重叠误触发，本次任务自动跳过。"
+            exit 0 # 退出，不标记为失败，不执行后续步骤
           fi
-
-      - name: 检出代码
-        uses: actions/checkout@v5
+          echo "✅ 成功匹配伦敦时间 07:30，准备开始分析任务。"
       
       - name: 检出代码
         uses: actions/checkout@v5
@@ -385,6 +383,8 @@ jobs:
           # 如果有 Tushare Pro 高积分账号，可将 tushare 放在首位
           REALTIME_SOURCE_PRIORITY: ${{ vars.REALTIME_SOURCE_PRIORITY || 'tencent,akshare_sina,efinance,akshare_em' }}
           
+          TZ: 'Europe/London'  # 🌟 关键：强制让整个 Python 运行环境处于伦敦时区
+        
         run: |
           # 处理 LITELLM YAML 配置文件
           if [ -n "$LITELLM_CONFIG_YAML" ] && [ -n "$LITELLM_CONFIG" ]; then
