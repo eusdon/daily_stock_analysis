@@ -41,16 +41,17 @@ jobs:
       
       - name: 自动对齐伦敦时间 07:30 (处理冬夏令时切换)
         run: |
-          export TZ="Europe/London"
-          CURRENT_HOUR=$(date +%-H)
-          echo "当前伦敦小时数为: $CURRENT_HOUR"
+          export TZ="Europe/London" # 获取当前伦敦的“小时*60 + 分钟”，计算出当天的绝对分钟数
+          CURRENT_MINUTES=$(( $(date +%-H) * 60 + $(date +%-M) ))
+          echo "当前伦敦本地时间为: $(date '+%H:%M'), 绝对分钟数: $CURRENT_MINUTES"
           
-          # 只在伦敦时间 7 点（即 07:30）执行
-          if [ "$CURRENT_HOUR" -ne 7 ]; then
-            echo "❌ 当前不是伦敦时间 07:30。为了防止冬夏令时重叠误触发，本次任务自动跳过。"
-            exit 0 # 退出，不标记为失败，不执行后续步骤
+          # 理想时间是 07:30 (7 * 60 + 30 = 450)
+          # 考虑到 GitHub Actions 可能会有 0-30 分钟的排队延迟，我们将容忍区间设为 07:15 (435) 到 08:30 (510)
+          if [ "$CURRENT_MINUTES" -lt 435 ] || [ "$CURRENT_MINUTES" -gt 510 ]; then
+            echo "❌ 当前本地时间不在 07:30 的合理延迟区间内。为了防止冬夏令时多余的 cron 误触发，本次任务自动跳过。"
+            exit 0
           fi
-          echo "✅ 成功匹配伦敦时间 07:30，准备开始分析任务。"
+          echo "✅ 成功匹配伦敦时间 07:30 运行区间，准备开始分析任务。"
       
       - name: 检出代码
         uses: actions/checkout@v5
